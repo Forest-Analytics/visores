@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor 3D Arbolado Conjunto Residencial Arbos PH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Mundo único: cielo de sabana claro, panel blanco papel, acento verde bosque. Layout: lienzo 3D a pantalla completa, panel izquierdo de control, ficha derecha */
+  --sky:#dfe7e3;
+  --panel:#fbfcfa;
+  --ink:#1d2a24;
+  --muted:#5d6b64;
+  --line:#d5ddd8;
+  --accent:#2f6b4f;
+  --accent-soft:#e3efe8;
+  --warn:#b4561f;
+  --display:"Bitter", Georgia, serif;
+  --body:"Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:14px;overflow:hidden}
+#scene{position:fixed;inset:0}
+#scene canvas{display:block;width:100%;height:100%;touch-action:none}
+button,select,input{font:inherit;color:inherit}
+button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.panel{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 24px rgba(29,42,36,.12)}
+#side{top:12px;left:12px;width:310px;max-height:calc(100% - 24px);overflow:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+h1{font-family:var(--display);font-weight:700;font-size:20px;line-height:1.2;margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:12.5px;margin-top:4px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--accent-soft);border-radius:8px;padding:8px}
+.stat b{display:block;font-family:var(--display);font-size:19px;font-variant-numeric:tabular-nums}
+.stat span{font-size:11.5px;color:var(--muted)}
+.group{display:flex;flex-direction:column;gap:6px}
+.group > label,.lbl{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 9px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+select,input[type=search]{width:100%;border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 9px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.val{font-variant-numeric:tabular-nums;font-weight:600}
+.splist{display:flex;flex-direction:column;gap:3px}
+.sp{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;padding:3px 4px;border-radius:5px;cursor:pointer;border:0;background:none;text-align:left}
+.sp:hover{background:var(--accent-soft)}
+.sp i{font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp .bar{grid-column:1/-1;height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.sp .bar span{display:block;height:100%;background:var(--accent)}
+.sp em{font-style:normal;font-variant-numeric:tabular-nums;color:var(--muted)}
+.sw-i{display:inline-block;width:10px;height:10px;border-radius:2px;border:1px solid #9aa29d;vertical-align:-1px}
+.sw-l{display:inline-block;width:16px;border-top:2px dashed var(--accent);vertical-align:3px}
+.note{font-size:11.5px;color:var(--muted);line-height:1.45}
+details summary{cursor:pointer;font-weight:600;font-size:12.5px}
+
+#legend{left:334px;bottom:12px;padding:10px 12px;max-width:min(560px,calc(100% - 346px))}
+#legend .items{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:6px}
+#legend .it{display:flex;align-items:center;gap:6px;font-size:12px}
+#legend .sw{width:12px;height:12px;border-radius:3px;flex:none}
+#legend .it i{font-style:italic}
+
+#card{top:12px;right:12px;width:290px;padding:16px;display:none;flex-direction:column;gap:10px}
+#card.open{display:flex}
+#card h2{font-family:var(--display);font-size:22px;margin:0}
+#card .sp-name{font-style:italic;font-size:15px}
+#card dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0}
+#card dt{color:var(--muted)}
+#card dd{margin:0;font-variant-numeric:tabular-nums;text-align:right}
+.tag{display:inline-block;font-size:10.5px;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:1px}
+.tag.m{background:var(--accent-soft);color:var(--accent)}
+.tag.e{background:#f6e7dc;color:var(--warn)}
+.tag.n{background:#eceeed;color:var(--muted)}
+.close{position:absolute;top:8px;right:8px;border:0;background:none;font-size:20px;cursor:pointer;color:var(--muted);width:32px;height:32px;border-radius:6px}
+.close:hover{background:var(--accent-soft)}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 10px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;padding:5px 8px;border-radius:5px;font-size:12px;display:none;white-space:nowrap}
+#tip i{font-style:italic}
+#compass{position:fixed;right:16px;bottom:16px;width:64px;height:64px}
+#scale{position:fixed;right:92px;bottom:22px;font-size:11.5px;color:var(--ink);text-align:center}
+#scale .b{height:6px;border:1.5px solid var(--ink);border-top:0;margin-bottom:3px}
+#err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:24px;text-align:center}
+#toggle{display:none}
+
+@media (max-width:760px){
+  #side{width:auto;right:12px;max-height:46%;}
+  #side.collapsed .body{display:none}
+  #toggle{display:inline-block;position:absolute;top:12px;right:12px}
+  #legend{left:12px;max-width:calc(100% - 24px);bottom:12px}
+  #card{top:auto;bottom:12px;left:12px;right:12px;width:auto;max-height:50%;overflow:auto;z-index:3}
+  #compass,#scale{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<div id="scene"></div>
+
+<aside id="side" class="panel" aria-label="Controles del visor">
+  <div>
+    <h1 id="ttl"></h1>
+    <div class="sub" id="sub"></div>
+    <button id="toggle" class="btn" aria-expanded="true">Ocultar</button>
+  </div>
+  <div class="body" style="display:flex;flex-direction:column;gap:14px">
+    <div class="stats">
+      <div class="stat"><b id="sN">–</b><span>árboles</span></div>
+      <div class="stat"><b id="sS">–</b><span>especies</span></div>
+      <div class="stat"><b id="sH">–</b><span>altura máx.</span></div>
+    </div>
+
+    <div class="group">
+      <label for="q">Buscar árbol</label>
+      <input id="q" type="search" placeholder="Número de árbol (ej. 27) o especie" list="splist" autocomplete="off">
+      <datalist id="splist"></datalist>
+    </div>
+
+    <div class="group">
+      <span class="lbl">Colorear por</span>
+      <div class="seg" id="mode" role="group" aria-label="Colorear por">
+        <button data-m="especie" aria-pressed="true">Especie</button>
+        <button data-m="altura" aria-pressed="false">Altura</button>
+        <button data-m="dap" aria-pressed="false">DAP</button>
+        <button data-m="porte" aria-pressed="false">Porte</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label for="fsp">Mostrar especie</label>
+      <select id="fsp"><option value="-1">Todas las especies</option></select>
+      <div class="row"><label for="fh" class="lbl" style="text-transform:none;letter-spacing:0">Altura mínima</label><span class="val" id="fhv">0 m</span></div>
+      <input id="fh" type="range" min="0" max="30" step="1" value="0">
+      <div class="note" id="shown"></div>
+    </div>
+
+    <div class="group">
+      <span class="lbl">Sol y sombra</span>
+      <div class="row"><label for="mon">Mes</label><span class="val" id="monv"></span></div>
+      <input id="mon" type="range" min="0" max="11" step="1" value="10">
+      <div class="row"><label for="hr">Hora</label><span class="val" id="hrv"></span></div>
+      <input id="hr" type="range" min="6" max="18" step="0.25" value="15">
+      <div class="note" id="sunv"></div>
+    </div>
+
+    <div class="group">
+      <span class="lbl">Edificaciones</span>
+      <div class="seg" id="bmode" role="group" aria-label="Edificaciones">
+        <button data-b="solid" aria-pressed="true">Sólidas</button>
+        <button data-b="ghost" aria-pressed="false">Transparentes</button>
+        <button data-b="off" aria-pressed="false">Ocultas</button>
+      </div>
+      <div class="note"><span class="sw-i" style="background:#e6dccb"></span> Dentro del predio &nbsp; <span class="sw-i" style="background:#d3d6d4"></span> Vecinas &nbsp; <span class="sw-l"></span> Límite del predio</div>
+      <div class="note" id="ctxst">Cargando contexto…</div>
+    </div>
+
+    <div class="group">
+      <span class="lbl">Vista</span>
+      <div class="btnrow">
+        <button class="btn" id="v3d">Perspectiva</button>
+        <button class="btn" id="vtop">Planta</button>
+        <button class="btn" id="vlbl" aria-pressed="false">Números</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <span class="lbl">Especies más frecuentes</span>
+      <div class="splist" id="top"></div>
+    </div>
+
+    <details>
+      <summary>Datos y supuestos</summary>
+      <p class="note" id="dsrc"></p>
+      <p class="note">Cuando la plantilla no trae diámetro de copa, se dibuja uno <b>estimado</b> a partir del DAP y la altura; la forma sigue el porte típico de la especie. La línea punteada es el límite del predio entregado en KMZ.</p>
+      <p class="note">En Bogotá, las edificaciones son las huellas de Catastro con su número de pisos y el relieve sale del Modelo Digital de Terreno 2025 (malla de 8 m, curvas cada 2 m). Fuera de Bogotá se usan las edificaciones de OpenStreetMap sobre suelo plano. La altura de un edificio se dibuja con 3 m por piso, salvo que la fuente traiga la altura. La sombra usa la posición solar calculada para la latitud del predio con cielo despejado.</p>
+      <p class="note" id="ctxsrc"></p>
+    </details>
+  </div>
+</aside>
+
+<div id="legend" class="panel" aria-live="polite"><span class="lbl" id="legt"></span><div class="items" id="legi"></div></div>
+
+<section id="card" class="panel" aria-live="polite">
+  <button class="close" id="cclose" aria-label="Cerrar ficha">×</button>
+  <div class="lbl">Árbol</div>
+  <h2 id="cid"></h2>
+  <div class="sp-name" id="csp"></div>
+  <dl id="cdl"></dl>
+  <div class="btnrow"><button class="btn" id="cfocus">Acercar</button><button class="btn" id="ccopy">Copiar coordenadas</button></div>
+  <div class="note" id="cnote"></div>
+</section>
+
+<div id="tip"></div>
+<svg id="compass" viewBox="0 0 64 64" aria-label="Norte"><circle cx="32" cy="32" r="29" fill="#fbfcfa" stroke="#d5ddd8"/><g id="needle"><path d="M32 8 L39 33 L32 29 L25 33 Z" fill="#2f6b4f"/><path d="M32 56 L39 33 L32 37 L25 33 Z" fill="#b9c4be"/></g><text x="32" y="22" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Public Sans,sans-serif" id="ntext">N</text></svg>
+<div id="scale"><div class="b" id="scb"></div><span id="sct">10 m</span></div>
+<div id="err"><p>No se pudo cargar el motor 3D. Revisa la conexión y recarga la página.</p></div>
+
+<script>window.DATA = {"meta":{"titulo":"Arbolado Conjunto Residencial Arbos PH","subtitulo":"Chapinero, Bogotá · Inventario ArborSentinel · Forest Analytics","fuente_inventario":"Posición, especie, altura y DAP vienen de la plantilla del inventario (381 registros, hoja «plantilla_maestra_arborsentinel»)."},"lat0":4.637489909999999,"lon0":-74.060745345,"species":["Pittosporum undulatum","Acacia melanoxylon","Fuchsia boliviana","Cupressus lusitanica","Croton bogotensis","Eugenia myrtifolia","Acacia retinodes","Eucalyptus globulus","Lafoensia acuminata","Fraxinus chinensis","Leptospermun scoparium","Acca sellowiana","Prunus serotina","Cotoneaster multiflora","Myrcianthes leucoxyla","Schinus terebentifolius","Liquidambar styraciflua","Ficus soatensis","Xylosma spiculiferum","Eucalyptus ficifolia","Cytharexylum subflavescens","Tibouchina urvilleana","Sparmannia africana","Grevillea banksia","Rhaphiolepis umbellata","Cedrela montana","Ligustrum lucidum","Abutilon megapotamicum","Sambucus nigra","Callistemon viminalis","Melaleuca leucodendron","Ficus carica","Escallonia pendula","Quercus humboldtii","Magnolia grandiflora","Archontophoenix alexandrae","Acacia baileyana","Bocconia frutescens","Oreopanax floribundum","Abutilon insigne","Myrcianthes rhopaloides","Cecropia telenitida","Eucalyptus pulverulenta","Salix humboldtiana","Callistemon citrinuss","Araucaria excelsa","Piper bogotense","Ficus benjamina","Pinus patula","Alnus acuminata","Fucsia arborea","Delostoma integrifolia","Juglans neotropica","Senna viarum","Camellia japonica","Tecoma stans","Acacia decurrens","Escallonia paniculata","Zelkova serrata","Psidium catleyanum","Clusia multiflora"],"counts":[48,43,36,32,25,21,11,11,10,9,9,8,7,6,6,6,5,5,4,4,4,4,4,3,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"extraCols":["Pudricion"],"trees":[[1,42,23.7,13.9,74.15,92.31,4.6383248,-74.0600771,null,["NO"]],[2,29,29.6,10.1,75.93,89.57,4.6383,-74.060061,null,["NO"]],[3,23,13.7,3.9,75.71,88.14,4.638287,-74.060063,null,["NO"]],[4,29,10.2,4.6,68.36,87.27,4.6382791,-74.0601292,null,["NO"]],[5,23,21.6,12.1,50.27,87.95,4.6382853,-74.0602923,null,["NO"]],[6,0,3.8,2.3,48.13,85.87,4.6382665,-74.0603116,null,["NO"]],[7,1,24.2,11.4,60.4,99.08,4.638386,-74.060201,null,["NO"]],[8,24,0.6,2.5,61.84,98.27,4.6383786,-74.060188,null,["NO"]],[9,24,5.7,2.8,60.48,96.72,4.6383646,-74.0602003,null,["NO"]],[10,24,5.1,3.2,58.15,96.27,4.6383605,-74.0602213,null,["NO"]],[11,1,32.8,16.0,57.18,97.42,4.6383709,-74.06023,null,["NO"]],[12,12,7.0,3.5,55.68,97.55,4.6383721,-74.0602436,null,["NO"]],[13,12,8.6,4.9,54.26,99.38,4.6383887,-74.0602563,null,["NO"]],[14,12,12.1,4.5,59.28,99.57,4.6383904,-74.0602111,null,["NO"]],[15,12,9.2,5.1,57.06,99.54,4.6383901,-74.0602311,null,["NO"]],[16,12,13.1,4.5,55.61,99.89,4.6383933,-74.0602441,null,["NO"]],[17,0,5.1,3.9,54.79,99.54,4.6383901,-74.0602516,null,["NO"]],[18,0,11.5,4.2,54.31,98.35,4.6383794,-74.0602558,null,["NO"]],[19,1,12.1,6.4,51.17,96.94,4.6383666,-74.0602842,null,["NO"]],[20,1,41.4,10.5,48.41,99.53,4.63839,-74.060309,null,["NO"]],[21,12,10.2,4.9,47.31,99.51,4.6383898,-74.060319,null,["NO"]],[22,0,6.7,4.0,45.92,100.12,4.6383954,-74.0603315,null,["NO"]],[23,0,6.0,4.3,44.55,99.28,4.6383878,-74.0603439,null,["NO"]],[24,2,2.5,2.2,44.04,98.61,4.6383817,-74.0603484,null,["NO"]],[25,2,2.5,3.2,42.42,99.13,4.6383864,-74.060363,null,["NO"]],[26,2,2.5,2.0,42.06,98.21,4.6383781,-74.0603663,null,["NO"]],[27,1,12.4,4.2,40.27,100.89,4.6384023,-74.0603824,null,["NO"]],[28,0,6.7,3.8,39.36,100.01,4.6383943,-74.0603906,null,["NO"]],[29,43,25.5,10.1,38.98,97.12,4.6383683,-74.0603941,null,["NO"]],[30,9,7.0,3.8,36.29,97.98,4.638376,-74.0604183,null,["NO"]],[31,30,6.7,3.6,46.09,97.43,4.6383711,-74.06033,null,["NO"]],[32,1,15.0,10.1,46.2,95.6,4.6383545,-74.060329,null,["NO"]],[33,0,2.9,1.8,43.92,94.55,4.638345,-74.0603495,null,["NO"]],[34,1,25.5,11.6,41.68,94.33,4.638343,-74.0603697,null,["NO"]],[35,1,24.5,15.0,34.56,97.26,4.6383695,-74.0604339,null,["NO"]],[36,9,7.0,4.0,39.87,99.42,4.638389,-74.060386,null,["NO"]],[37,1,14.3,4.5,37.56,95.81,4.6383564,-74.0604069,null,["NO"]],[38,1,19.1,15.0,39.25,93.93,4.6383394,-74.0603916,null,["NO"]],[39,1,10.5,7.7,33.97,96.16,4.6383595,-74.0604392,null,["NO"]],[40,1,11.8,8.0,33.32,95.44,4.638353,-74.060445,null,["NO"]],[41,1,11.1,1.0,35.21,91.23,4.638315,-74.060428,null,["NO"]],[42,1,5.4,5.0,32.66,91.9,4.638321,-74.060451,null,["NO"]],[43,1,15.9,8.7,32.1,91.23,4.638315,-74.060456,null,["NO"]],[44,1,39.8,20.1,31.42,87.41,4.6382804,-74.0604622,null,["NO"]],[45,1,16.2,7.3,30.29,86.29,4.6382703,-74.0604723,null,["NO"]],[46,1,16.2,8.0,29.25,84.84,4.6382572,-74.0604818,null,["NO"]],[47,12,21.0,11.8,30.31,75.0,4.6381682,-74.0604721,null,["NO"]],[48,4,18.8,6.7,10.52,47.2,4.6379167,-74.0606505,null,["NO"]],[49,4,17.5,6.9,10.3,43.52,4.6378835,-74.0606525,null,["NO"]],[50,4,12.1,6.0,10.87,40.42,4.6378555,-74.0606474,null,["NO"]],[51,1,10.5,6.6,10.49,27.74,4.6377408,-74.0606508,null,["NO"]],[52,4,49.3,12.3,9.22,26.93,4.6377335,-74.0606623,null,["NO"]],[53,4,7.3,6.6,11.1,23.5,4.6377025,-74.0606453,null,["NO"]],[54,16,20.4,13.8,10.84,22.25,4.6376912,-74.0606477,null,["NO"]],[55,4,33.7,18.8,11.65,19.94,4.6376702,-74.0606403,null,["NO"]],[56,18,1.9,2.0,12.99,18.59,4.637658,-74.0606282,null,["NO"]],[57,18,2.5,2.1,13.79,16.55,4.6376396,-74.0606211,null,["NO"]],[58,5,2.5,2.5,15.56,13.13,4.6376086,-74.0606051,null,["NO"]],[59,4,39.2,14.0,17.56,12.13,4.6375996,-74.0605871,null,["NO"]],[60,16,10.5,2.3,21.12,2.77,4.6375149,-74.060555,null,["NO"]],[61,5,24.8,11.2,22.32,0.75,4.6374967,-74.0605442,null,["NO"]],[62,16,16.2,11.0,23.71,-1.13,4.6374797,-74.0605316,null,["NO"]],[63,31,2.2,1.4,50.07,-18.85,4.6373194,-74.0602941,null,["NO"]],[64,31,1.9,1.0,54.0,-19.33,4.6373151,-74.0602587,null,["NO"]],[65,4,35.3,28.1,57.79,-20.1,4.6373081,-74.0602245,null,["NO"]],[66,4,31.5,24.1,60.13,-21.25,4.6372977,-74.0602034,null,["NO"]],[67,0,31.5,2.0,81.1,-41.29,4.6371165,-74.0600144,null,["NO"]],[68,2,5.4,3.0,79.32,-41.1,4.6371182,-74.0600305,null,["NO"]],[69,2,2.9,2.8,77.26,-40.58,4.6371229,-74.060049,null,["NO"]],[70,2,0.0,2.1,75.13,-39.37,4.6371338,-74.0600683,null,["NO"]],[71,2,3.8,3.8,74.15,-38.25,4.637144,-74.0600771,null,["NO"]],[72,2,0.0,2.3,72.43,-38.62,4.6371407,-74.0600925,null,["NO"]],[73,2,2.9,1.9,70.28,-37.19,4.6371535,-74.060112,null,["NO"]],[74,13,4.1,4.1,68.1,-36.38,4.6371609,-74.0601316,null,["NO"]],[75,0,7.0,4.5,65.62,-34.32,4.6371795,-74.0601539,null,["NO"]],[76,4,10.2,2.8,62.97,-32.6,4.6371951,-74.0601779,null,["NO"]],[77,4,21.0,11.5,60.02,-31.65,4.6372036,-74.0602044,null,["NO"]],[78,10,0.0,1.7,58.34,-30.33,4.6372156,-74.0602196,null,["NO"]],[79,10,0.0,1.9,56.36,-29.03,4.6372274,-74.0602374,null,["NO"]],[80,10,0.0,1.8,54.89,-27.91,4.6372375,-74.0602506,null,["NO"]],[81,10,0.0,1.8,53.07,-26.65,4.6372489,-74.060267,null,["NO"]],[82,10,0.0,1.7,51.44,-25.63,4.6372581,-74.0602817,null,["NO"]],[83,10,0.0,1.7,50.13,-24.56,4.6372678,-74.0602936,null,["NO"]],[84,10,0.0,1.6,48.76,-23.6,4.6372765,-74.0603059,null,["NO"]],[85,10,0.0,1.7,47.53,-22.89,4.6372829,-74.060317,null,["NO"]],[86,10,0.0,1.7,46.14,-22.25,4.6372887,-74.0603295,null,["NO"]],[87,6,24.8,13.3,43.89,-21.27,4.6372975,-74.0603498,null,["NO"]],[88,6,36.6,11.6,41.58,-20.36,4.6373058,-74.0603706,null,["NO"]],[89,5,6.4,7.0,39.54,-19.42,4.6373142,-74.060389,null,["NO"]],[90,5,7.0,5.7,37.51,-17.98,4.6373273,-74.0604073,null,["NO"]],[91,5,8.0,5.0,35.81,-17.12,4.6373351,-74.0604226,null,["NO"]],[92,5,7.0,4.0,34.3,-16.45,4.6373412,-74.0604362,null,["NO"]],[93,5,36.9,2.5,32.98,-15.25,4.637352,-74.0604481,null,["NO"]],[94,5,3.8,2.7,31.14,-13.86,4.6373646,-74.0604647,null,["NO"]],[95,1,38.8,17.0,29.67,-12.73,4.6373748,-74.0604779,null,["NO"]],[96,5,0.0,1.5,27.52,-11.88,4.6373825,-74.0604973,null,["NO"]],[97,1,47.1,18.0,25.49,-10.88,4.6373915,-74.0605156,null,["NO"]],[98,5,0.0,1.6,23.51,-9.51,4.6374039,-74.0605335,null,["NO"]],[99,5,0.0,1.6,21.46,-8.52,4.6374129,-74.0605519,null,["NO"]],[100,5,0.0,1.4,19.82,-7.49,4.6374222,-74.0605668,null,["NO"]],[101,6,6.4,3.8,17.55,-6.34,4.6374326,-74.0605872,null,["NO"]],[102,5,12.7,11.0,15.72,-5.2,4.6374429,-74.0606036,null,["NO"]],[103,6,41.7,12.9,13.52,-4.1,4.6374529,-74.0606235,null,["NO"]],[104,4,8.0,6.9,11.0,-2.68,4.6374657,-74.0606462,null,["NO"]],[105,4,26.1,9.9,10.77,0.68,4.6374961,-74.0606483,null,["NO"]],[106,4,29.6,10.7,10.97,6.07,4.6375448,-74.0606465,null,["NO"]],[107,4,22.3,10.2,9.27,12.61,4.637604,-74.0606618,null,["NO"]],[108,4,15.6,10.2,6.28,21.17,4.6376814,-74.0606887,null,["NO"]],[109,4,27.1,13.7,3.37,29.75,4.637759,-74.060715,null,["NO"]],[110,32,36.3,15.1,-1.96,27.83,4.6377416,-74.060763,null,["NO"]],[111,2,0.0,1.7,-3.63,24.06,4.6377075,-74.0607781,null,["NO"]],[112,44,6.7,6.6,-9.39,19.24,4.6376639,-74.06083,null,["NO"]],[113,32,34.1,12.0,-17.28,12.52,4.6376032,-74.060901,null,["NO"]],[114,6,63.0,18.1,-15.01,11.58,4.6375946,-74.0608806,null,["NO"]],[115,6,44.9,14.7,-12.59,10.55,4.6375853,-74.0608588,null,["NO"]],[116,0,2.2,2.1,-9.17,8.95,4.6375709,-74.060828,null,["NO"]],[117,5,2.5,1.6,-7.18,7.91,4.6375615,-74.0608101,null,["NO"]],[118,4,3.2,2.1,-5.5,6.38,4.6375476,-74.0607949,null,["NO"]],[119,1,38.8,17.1,-3.6,5.23,4.6375372,-74.0607778,null,["NO"]],[120,6,20.1,6.8,-1.75,4.42,4.6375299,-74.0607611,null,["NO"]],[121,1,8.0,4.9,0.1,3.72,4.6375236,-74.0607445,null,["NO"]],[122,25,15.9,13.8,2.59,4.65,4.6375319,-74.060722,null,["NO"]],[123,6,10.2,4.8,2.92,1.8,4.6375062,-74.060719,null,["NO"]],[124,0,3.8,3.5,4.51,0.92,4.6374982,-74.0607047,null,["NO"]],[125,5,0.0,1.7,5.61,0.54,4.6374948,-74.0606947,null,["NO"]],[126,6,47.1,12.7,7.83,-0.53,4.6374851,-74.0606748,null,["NO"]],[127,26,0.0,3.5,-20.73,15.19,4.6376273,-74.0609322,null,["NO"]],[128,1,14.3,7.9,-22.31,16.24,4.6376368,-74.0609464,null,["NO"]],[129,19,20.7,8.4,-16.65,22.64,4.6376947,-74.0608954,null,["NO"]],[130,3,8.6,4.5,-12.78,25.44,4.63772,-74.0608605,null,["NO"]],[131,33,7.3,7.0,-9.52,27.64,4.6377399,-74.0608312,null,["NO"]],[132,3,11.1,4.7,-6.06,29.88,4.6377601,-74.0608,null,["NO"]],[133,3,7.0,4.5,-7.55,32.24,4.6377815,-74.0608134,null,["NO"]],[134,4,12.7,8.1,-4.97,33.05,4.6377888,-74.0607901,null,["NO"]],[135,26,2.9,3.8,-2.52,34.67,4.6378035,-74.060768,null,["NO"]],[136,45,0.0,3.1,-0.9,34.64,4.6378032,-74.0607535,null,["NO"]],[137,46,5.7,7.7,0.39,36.12,4.6378165,-74.0607418,null,["NO"]],[138,3,31.5,10.7,1.73,38.99,4.6378425,-74.0607297,null,["NO"]],[139,3,15.6,10.8,2.04,41.4,4.6378643,-74.0607269,null,["NO"]],[140,3,14.0,10.9,2.13,42.79,4.6378769,-74.0607261,null,["NO"]],[141,18,0.0,1.7,2.14,43.95,4.6378873,-74.060726,null,["NO"]],[142,3,19.4,9.1,2.02,44.7,4.6378942,-74.0607272,null,["NO"]],[143,3,21.6,11.5,2.06,45.49,4.6379013,-74.0607268,null,["NO"]],[144,3,10.8,9.1,2.24,46.52,4.6379107,-74.0607251,null,["NO"]],[145,3,14.0,10.8,2.41,47.08,4.6379157,-74.0607236,null,["NO"]],[146,3,25.8,9.3,2.67,48.26,4.6379263,-74.0607213,null,["NO"]],[147,3,13.7,9.0,3.36,49.51,4.6379376,-74.0607151,null,["NO"]],[148,3,14.3,10.7,3.96,50.85,4.6379497,-74.0607096,null,["NO"]],[149,3,20.1,10.7,4.21,52.04,4.6379605,-74.0607074,null,["NO"]],[150,3,8.9,10.7,5.0,53.17,4.6379708,-74.0607002,null,["NO"]],[151,3,19.4,10.7,5.72,54.37,4.6379816,-74.0606938,null,["NO"]],[152,13,2.5,3.1,5.99,55.09,4.6379881,-74.0606914,null,["NO"]],[153,0,5.4,4.3,6.82,55.64,4.6379931,-74.0606839,null,["NO"]],[154,3,12.7,10.7,7.84,56.29,4.6379989,-74.0606747,null,["NO"]],[155,3,26.4,10.7,8.41,57.88,4.6380134,-74.0606695,null,["NO"]],[156,3,31.5,10.7,9.78,59.09,4.6380243,-74.0606572,null,["NO"]],[157,3,15.9,10.7,11.44,60.99,4.6380415,-74.0606423,null,["NO"]],[158,3,17.5,10.7,12.57,62.92,4.638059,-74.060632,null,["NO"]],[159,3,22.9,10.7,13.24,63.7,4.638066,-74.060626,null,["NO"]],[160,3,10.2,10.7,13.67,64.38,4.6380721,-74.0606221,null,["NO"]],[161,3,21.3,10.7,15.12,64.64,4.6380745,-74.0606091,null,["NO"]],[162,3,12.4,10.7,16.09,64.9,4.6380769,-74.0606003,null,["NO"]],[163,3,13.4,10.7,16.54,65.55,4.6380827,-74.0605963,null,["NO"]],[164,3,13.4,10.7,16.76,66.1,4.6380877,-74.0605943,null,["NO"]],[165,3,15.3,10.7,16.94,67.25,4.6380981,-74.0605927,null,["NO"]],[166,3,2.9,3.0,18.87,69.8,4.6381212,-74.0605753,null,["NO"]],[167,3,15.0,9.4,19.65,71.47,4.6381363,-74.0605682,null,["NO"]],[168,3,8.3,9.0,20.05,73.23,4.6381521,-74.0605647,null,["NO"]],[169,3,15.3,8.5,21.43,74.76,4.638166,-74.0605522,null,["NO"]],[170,18,3.5,2.8,22.79,76.77,4.6381842,-74.06054,null,["NO"]],[171,1,4.5,5.1,23.25,78.28,4.6381979,-74.0605358,null,["NO"]],[172,1,5.4,5.0,24.99,78.97,4.6382041,-74.0605201,null,["NO"]],[173,1,6.4,5.0,25.21,80.06,4.6382139,-74.0605182,null,["NO"]],[174,1,6.4,5.0,26.74,81.64,4.6382282,-74.0605043,null,["NO"]],[175,1,2.2,5.0,27.77,83.39,4.638244,-74.0604951,null,["NO"]],[176,1,6.7,5.2,28.51,84.07,4.6382502,-74.0604884,null,["NO"]],[177,8,9.9,8.4,85.85,-34.15,4.637181,-74.0599716,null,["NO"]],[178,8,12.1,8.5,86.19,-30.03,4.6372183,-74.0599686,null,["NO"]],[179,8,12.1,8.0,86.75,-25.72,4.6372573,-74.0599635,null,["NO"]],[180,34,14.3,8.0,87.21,-22.14,4.6372897,-74.0599594,null,["NO"]],[181,8,18.1,8.8,88.04,-17.25,4.6373339,-74.0599519,null,["NO"]],[182,8,16.6,8.7,88.14,-14.17,4.6373617,-74.059951,null,["NO"]],[183,8,15.3,8.7,88.99,-10.21,4.6373976,-74.0599433,null,["NO"]],[184,27,3.8,2.3,88.77,-5.72,4.6374382,-74.0599453,null,["NO"]],[185,2,3.8,1.7,89.35,-0.62,4.6374843,-74.05994,null,["NO"]],[186,2,3.5,1.7,89.64,5.16,4.6375366,-74.0599375,null,["NO"]],[187,47,6.4,3.0,90.34,12.02,4.6375986,-74.0599312,null,["NO"]],[188,8,11.5,5.2,90.56,22.58,4.6376941,-74.0599292,null,["NO"]],[189,35,0.0,1.2,91.85,28.75,4.6377499,-74.0599176,null,["NO"]],[190,8,18.1,7.9,89.99,39.44,4.6378466,-74.0599343,null,["NO"]],[191,36,32.1,7.9,90.36,44.02,4.637888,-74.059931,null,["NO"]],[192,2,2.9,1.6,92.24,49.22,4.637935,-74.059914,null,["NO"]],[193,0,3.8,3.1,94.68,47.67,4.637921,-74.059892,null,["NO"]],[194,4,32.8,12.8,89.14,52.31,4.637963,-74.059942,null,["NO"]],[195,0,3.8,1.5,90.02,53.64,4.637975,-74.059934,null,["NO"]],[196,4,47.1,12.0,93.57,58.72,4.638021,-74.059902,null,["NO"]],[197,5,8.0,3.7,91.47,60.38,4.638036,-74.059921,null,["NO"]],[198,5,3.5,2.3,91.47,57.84,4.638013,-74.059921,null,["NO"]],[199,5,2.5,1.6,92.8,63.15,4.638061,-74.059909,null,["NO"]],[200,2,2.9,2.1,91.58,65.47,4.638082,-74.05992,null,["NO"]],[201,2,2.5,1.6,95.02,67.24,4.638098,-74.059889,null,["NO"]],[202,1,15.3,5.6,97.79,69.45,4.638118,-74.059864,null,["NO"]],[203,1,22.9,11.5,97.46,69.89,4.638122,-74.059867,null,["NO"]],[204,1,7.6,6.0,95.9,71.66,4.638138,-74.059881,null,["NO"]],[205,0,4.1,2.1,95.46,74.98,4.638168,-74.059885,null,["NO"]],[206,0,7.3,6.7,97.31,75.33,4.6381712,-74.0598683,null,["NO"]],[207,0,2.5,3.1,98.23,75.64,4.638174,-74.05986,null,["NO"]],[208,0,4.5,3.1,96.84,77.86,4.6381941,-74.0598726,null,["NO"]],[209,17,22.0,11.4,97.4,79.28,4.6382069,-74.0598675,null,["NO"]],[210,17,19.1,11.8,97.1,81.14,4.6382237,-74.0598703,null,["NO"]],[211,1,33.4,10.1,96.76,81.69,4.6382287,-74.0598733,null,["NO"]],[212,0,2.9,2.1,96.27,82.81,4.6382388,-74.0598777,null,["NO"]],[213,0,2.2,3.1,96.68,84.11,4.6382506,-74.059874,null,["NO"]],[214,17,57.3,12.2,98.03,85.23,4.6382607,-74.0598619,null,["NO"]],[215,0,3.5,4.2,97.65,86.72,4.6382742,-74.0598653,null,["NO"]],[216,14,4.8,2.1,97.66,88.59,4.6382911,-74.0598652,null,["NO"]],[217,14,5.4,2.4,98.0,90.14,4.6383051,-74.0598621,null,["NO"]],[218,20,9.9,5.5,99.64,91.53,4.6383177,-74.0598474,null,["NO"]],[219,0,3.8,5.2,101.38,93.92,4.6383393,-74.0598316,null,["NO"]],[220,9,9.2,3.4,101.9,97.36,4.6383704,-74.059827,null,["NO"]],[221,48,12.1,5.6,101.36,97.38,4.6383706,-74.0598319,null,["NO"]],[222,9,10.2,4.9,100.89,96.67,4.6383642,-74.0598361,null,["NO"]],[223,0,3.2,2.1,100.08,96.65,4.6383639,-74.0598433,null,["NO"]],[224,28,5.7,3.0,99.55,95.71,4.6383555,-74.0598482,null,["NO"]],[225,9,32.5,18.4,98.84,96.47,4.6383624,-74.0598546,null,["NO"]],[226,9,6.7,2.2,101.56,98.15,4.6383776,-74.05983,null,["NO"]],[227,20,9.5,8.6,101.67,99.29,4.6383879,-74.0598291,null,["NO"]],[228,49,5.1,3.1,101.02,99.45,4.6383893,-74.0598348,null,["NO"]],[229,0,4.8,5.0,95.24,99.86,4.638393,-74.059887,null,["NO"]],[230,36,33.1,9.3,96.02,98.76,4.6383831,-74.0598799,null,["NO"]],[231,25,14.6,8.7,94.69,98.87,4.6383841,-74.0598919,null,["NO"]],[232,0,2.5,3.4,95.58,96.66,4.6383641,-74.0598839,null,["NO"]],[233,0,3.2,3.5,95.69,95.78,4.6383561,-74.0598829,null,["NO"]],[234,1,9.9,4.7,95.03,95.87,4.6383569,-74.0598889,null,["NO"]],[235,1,8.9,4.5,91.39,99.72,4.6383917,-74.0599217,null,["NO"]],[236,1,9.9,3.5,93.09,99.67,4.6383913,-74.0599064,null,["NO"]],[237,1,6.0,4.8,92.84,99.04,4.6383856,-74.0599086,null,["NO"]],[238,37,5.7,4.1,92.61,98.28,4.6383787,-74.0599107,null,["NO"]],[239,2,3.8,2.6,92.01,97.97,4.638376,-74.0599161,null,["NO"]],[240,2,3.5,3.2,91.63,97.42,4.638371,-74.0599195,null,["NO"]],[241,2,3.5,2.1,91.69,96.43,4.638362,-74.059919,null,["NO"]],[242,21,3.8,3.2,90.42,97.93,4.6383755,-74.0599304,null,["NO"]],[243,14,9.2,3.1,89.34,98.99,4.6383852,-74.0599402,null,["NO"]],[244,2,4.1,2.1,88.41,100.36,4.6383975,-74.0599485,null,["NO"]],[245,8,12.1,7.0,89.41,100.13,4.6383955,-74.0599395,null,["NO"]],[246,21,2.5,3.2,87.77,100.76,4.6384012,-74.0599543,null,["NO"]],[247,37,22.9,5.6,86.62,100.72,4.6384008,-74.0599647,null,["NO"]],[248,38,19.1,6.5,85.0,100.0,4.6383943,-74.0599793,null,["NO"]],[249,21,3.8,1.9,83.57,99.1,4.6383861,-74.0599922,null,["NO"]],[250,27,5.1,3.0,82.49,98.54,4.6383811,-74.0600019,null,["NO"]],[251,27,2.9,2.0,82.13,98.16,4.6383776,-74.0600051,null,["NO"]],[252,0,3.8,1.9,81.96,97.58,4.6383724,-74.0600067,null,["NO"]],[253,17,21.3,8.5,81.88,96.83,4.6383656,-74.0600074,null,["NO"]],[254,23,35.3,11.5,82.24,96.21,4.63836,-74.0600042,null,["NO"]],[255,50,13.4,1.5,82.94,95.61,4.6383546,-74.0599979,null,["NO"]],[256,17,26.4,13.2,83.26,95.27,4.6383515,-74.0599949,null,["NO"]],[257,22,3.5,2.7,81.07,81.85,4.6382302,-74.0600147,null,["NO"]],[258,2,2.9,1.7,81.17,81.25,4.6382247,-74.0600138,null,["NO"]],[259,2,2.9,2.1,81.2,80.75,4.6382202,-74.0600135,null,["NO"]],[260,2,4.8,1.9,81.51,80.15,4.6382147,-74.0600108,null,["NO"]],[261,2,2.5,1.8,81.07,80.13,4.6382146,-74.0600147,null,["NO"]],[262,2,4.1,2.1,81.36,79.92,4.6382127,-74.0600121,null,["NO"]],[263,2,3.8,2.1,80.97,79.72,4.6382109,-74.0600156,null,["NO"]],[264,2,2.5,1.5,81.14,79.59,4.6382097,-74.0600141,null,["NO"]],[265,0,4.8,2.1,80.79,79.11,4.6382054,-74.0600172,null,["NO"]],[266,2,5.1,2.6,83.0,77.03,4.6381865,-74.0599973,null,["NO"]],[267,26,5.4,3.5,83.91,77.45,4.6381903,-74.0599891,null,["NO"]],[268,5,2.5,1.9,86.49,85.43,4.6382625,-74.0599658,null,["NO"]],[269,0,3.5,1.9,89.68,84.66,4.6382556,-74.0599371,null,["NO"]],[270,0,2.2,1.8,87.78,84.25,4.6382519,-74.0599542,null,["NO"]],[271,51,4.1,3.1,87.66,82.58,4.6382368,-74.0599553,null,["NO"]],[272,11,4.5,2.5,87.07,81.39,4.638226,-74.0599606,null,["NO"]],[273,0,3.2,1.9,90.05,80.41,4.6382171,-74.0599338,null,["NO"]],[274,52,8.9,7.6,87.6,78.77,4.6382023,-74.0599558,null,["NO"]],[275,11,5.7,2.7,90.22,78.01,4.6381954,-74.0599322,null,["NO"]],[276,53,15.9,8.7,88.11,76.83,4.6381848,-74.0599513,null,["NO"]],[277,0,2.5,2.3,85.25,74.48,4.6381635,-74.059977,null,["NO"]],[278,13,9.5,5.7,85.72,72.9,4.6381492,-74.0599728,null,["NO"]],[279,13,8.0,5.0,88.63,74.88,4.6381671,-74.0599465,null,["NO"]],[280,13,7.6,5.4,88.44,72.7,4.6381473,-74.0599483,null,["NO"]],[281,0,2.2,1.5,89.69,73.03,4.6381504,-74.059937,null,["NO"]],[282,2,5.1,1.6,86.59,71.18,4.6381336,-74.0599649,null,["NO"]],[283,22,6.0,1.6,88.17,71.86,4.6381398,-74.0599507,null,["NO"]],[284,0,5.4,1.9,87.04,70.47,4.6381272,-74.0599609,null,["NO"]],[285,2,3.2,2.1,87.36,70.05,4.6381234,-74.059958,null,["NO"]],[286,5,3.5,2.6,87.53,69.64,4.6381197,-74.0599564,null,["NO"]],[287,0,17.8,9.3,87.87,69.18,4.6381155,-74.0599534,null,["NO"]],[288,0,22.6,9.8,89.27,68.14,4.6381062,-74.0599408,null,["NO"]],[289,0,13.7,10.0,91.41,75.5,4.6381727,-74.0599215,null,["NO"]],[290,28,5.4,3.2,89.34,66.89,4.6380948,-74.0599402,null,["NO"]],[291,0,2.2,2.1,87.42,66.6,4.6380922,-74.0599574,null,["NO"]],[292,28,6.4,3.5,86.48,66.02,4.638087,-74.0599659,null,["NO"]],[293,39,5.7,1.6,85.73,65.2,4.6380796,-74.0599727,null,["NO"]],[294,2,3.8,2.1,85.1,65.12,4.6380789,-74.0599784,null,["NO"]],[295,39,2.9,3.1,84.32,64.26,4.638071,-74.0599854,null,["NO"]],[296,0,17.2,9.1,82.95,63.88,4.6380676,-74.0599978,null,["NO"]],[297,54,5.1,2.6,80.61,64.04,4.638069,-74.0600188,null,["NO"]],[298,20,27.4,15.1,79.51,63.41,4.6380634,-74.0600287,null,["NO"]],[299,20,35.0,15.0,88.16,63.7,4.638066,-74.0599508,null,["NO"]],[300,34,21.0,9.1,86.53,62.23,4.6380527,-74.0599655,null,["NO"]],[301,2,2.9,3.1,85.95,66.49,4.6380913,-74.0599707,null,["NO"]],[302,2,3.5,2.2,83.98,66.26,4.6380892,-74.0599885,null,["NO"]],[303,16,26.4,12.9,88.22,61.18,4.6380432,-74.0599503,null,["NO"]],[304,55,8.3,6.0,88.37,58.88,4.6380224,-74.0599489,null,["NO"]],[305,56,4.1,3.0,85.81,56.44,4.6380004,-74.0599719,null,["NO"]],[306,15,18.1,5.9,84.48,54.56,4.6379834,-74.0599839,null,["NO"]],[307,15,16.6,5.4,82.03,55.18,4.6379889,-74.060006,null,["NO"]],[308,15,27.4,6.8,85.04,58.88,4.6380224,-74.0599789,null,["NO"]],[309,0,3.5,2.1,82.93,61.75,4.6380484,-74.0599979,null,["NO"]],[310,35,5.1,1.3,80.71,58.43,4.6380184,-74.0600179,null,["NO"]],[311,11,14.6,3.1,77.16,55.23,4.6379894,-74.0600499,null,["NO"]],[312,11,11.5,2.5,76.72,53.46,4.6379734,-74.0600539,null,["NO"]],[313,30,31.8,10.5,74.12,59.61,4.638029,-74.0600773,null,["NO"]],[314,8,15.9,11.7,71.9,59.38,4.6380269,-74.0600973,null,["NO"]],[315,0,3.5,8.4,71.84,59.09,4.6380243,-74.0600979,null,["NO"]],[316,15,33.1,7.8,68.39,59.61,4.638029,-74.060129,null,["NO"]],[317,14,22.9,8.4,61.17,59.06,4.638024,-74.060194,null,["NO"]],[318,14,12.1,7.0,55.52,54.85,4.637986,-74.060245,null,["NO"]],[319,15,41.4,10.1,52.41,54.08,4.637979,-74.060273,null,["NO"]],[320,15,17.2,6.4,48.28,49.45,4.6379371,-74.0603102,null,["NO"]],[321,33,17.5,15.7,47.26,48.47,4.6379282,-74.0603194,null,["NO"]],[322,7,42.0,33.2,48.38,47.44,4.6379189,-74.0603093,null,["NO"]],[323,7,49.0,35.1,45.53,46.71,4.6379123,-74.060335,null,["NO"]],[324,7,40.4,18.9,45.32,44.63,4.6378935,-74.0603369,null,["NO"]],[325,1,17.8,20.4,66.22,44.92,4.6378962,-74.0601486,null,["NO"]],[326,1,26.7,18.2,67.79,45.71,4.6379033,-74.0601344,null,["NO"]],[327,57,10.2,8.5,68.35,47.95,4.6379235,-74.0601293,null,["NO"]],[328,0,4.5,3.4,66.8,49.32,4.637936,-74.0601433,null,["NO"]],[329,1,3.5,4.5,65.61,48.69,4.6379302,-74.060154,null,["NO"]],[330,14,4.1,2.4,63.39,48.44,4.637928,-74.060174,null,["NO"]],[331,0,3.5,3.7,63.29,47.52,4.6379197,-74.060175,null,["NO"]],[332,1,34.4,12.1,64.73,44.24,4.63789,-74.060162,null,["NO"]],[333,40,6.7,4.3,67.61,50.65,4.637948,-74.060136,null,["NO"]],[334,58,24.2,7.7,66.19,50.17,4.6379436,-74.0601488,null,["NO"]],[335,0,22.0,8.1,62.09,48.4,4.6379277,-74.0601858,null,["NO"]],[336,41,21.6,12.6,61.16,47.62,4.6379205,-74.0601941,null,["NO"]],[337,41,29.6,13.8,63.84,60.58,4.6380378,-74.06017,null,["NO"]],[338,38,8.9,7.6,65.95,60.49,4.638037,-74.060151,null,["NO"]],[339,4,24.5,22.0,70.41,42.83,4.6378772,-74.0601108,null,["NO"]],[340,2,5.7,2.8,70.09,44.6,4.6378932,-74.0601136,null,["NO"]],[341,2,0.0,2.0,69.65,43.8,4.6378861,-74.0601176,null,["NO"]],[342,2,0.0,1.5,68.95,43.18,4.6378804,-74.0601239,null,["NO"]],[343,22,0.0,3.2,68.46,41.97,4.6378694,-74.0601284,null,["NO"]],[344,22,0.0,5.0,67.97,42.39,4.6378732,-74.0601328,null,["NO"]],[345,0,0.0,2.0,66.29,41.69,4.637867,-74.0601479,null,["NO"]],[346,0,0.0,2.2,64.99,41.22,4.6378627,-74.0601596,null,["NO"]],[347,7,41.1,29.1,58.37,36.91,4.6378237,-74.0602193,null,["NO"]],[348,7,42.3,25.3,56.79,36.09,4.6378163,-74.0602335,null,["NO"]],[349,7,50.6,30.3,54.26,34.8,4.6378046,-74.0602563,null,["NO"]],[350,7,40.7,30.4,52.39,34.13,4.6377986,-74.0602732,null,["NO"]],[351,7,51.2,30.0,50.29,33.12,4.6377895,-74.0602921,null,["NO"]],[352,7,12.1,10.7,48.41,32.46,4.6377834,-74.0603091,null,["NO"]],[353,59,0.0,1.2,50.63,31.29,4.6377729,-74.0602891,null,["NO"]],[354,21,0.0,1.3,53.26,31.66,4.6377762,-74.0602654,null,["NO"]],[355,11,0.0,2.3,55.46,32.84,4.6377869,-74.0602455,null,["NO"]],[356,11,0.0,2.4,55.59,29.93,4.6377606,-74.0602443,null,["NO"]],[357,19,28.6,10.6,58.94,27.15,4.6377354,-74.0602141,null,["NO"]],[358,40,6.0,4.0,60.82,26.68,4.6377312,-74.0601972,null,["NO"]],[359,5,9.9,6.2,62.53,26.37,4.6377284,-74.0601817,null,["NO"]],[360,0,4.8,4.9,61.9,29.16,4.6377536,-74.0601874,null,["NO"]],[361,11,0.0,2.4,61.66,28.47,4.6377474,-74.0601896,null,["NO"]],[362,11,0.0,2.3,61.69,26.37,4.6377284,-74.0601893,null,["NO"]],[363,7,15.9,14.8,60.18,25.33,4.637719,-74.060203,null,["NO"]],[364,16,6.4,5.7,61.18,21.74,4.6376865,-74.060194,null,["NO"]],[365,4,22.3,14.9,62.25,21.39,4.6376833,-74.0601843,null,["NO"]],[366,19,17.8,8.6,59.63,23.68,4.637704,-74.0602079,null,["NO"]],[367,4,39.2,19.0,55.84,19.14,4.637663,-74.0602421,null,["NO"]],[368,0,3.5,2.7,54.19,20.83,4.6376783,-74.0602569,null,["NO"]],[369,19,8.3,5.6,51.41,23.33,4.6377009,-74.0602821,null,["NO"]],[370,7,38.2,17.9,47.48,23.0,4.6376979,-74.0603175,null,["NO"]],[371,60,5.4,3.8,47.44,28.04,4.6377435,-74.0603178,null,["NO"]],[372,4,18.8,12.3,44.8,29.42,4.6377559,-74.0603416,null,["NO"]],[373,13,1.6,6.1,89.44,-30.88,4.6372106,-74.0599393,null,["NO"]],[374,2,3.8,2.6,92.38,-20.09,4.6373082,-74.0599128,null,["NO"]],[375,6,19.7,7.4,95.84,33.86,4.6377961,-74.0598816,null,["NO"]],[376,6,17.5,4.3,97.4,57.54,4.6380103,-74.0598675,null,["NO"]],[377,1,29.0,7.6,99.56,79.46,4.6382085,-74.0598481,null,["NO"]],[378,9,13.1,16.8,100.34,84.37,4.6382529,-74.059841,null,["NO"]],[379,9,47.7,16.8,101.23,86.36,4.638271,-74.059833,null,["NO"]],[380,9,12.4,7.0,102.01,89.51,4.6382994,-74.0598259,null,["NO"]],[381,25,20.1,15.7,90.13,89.57,4.6383,-74.059933,null,["NO"]]],"predio":[[35.55,-16.9,-0.25,-70.0,-2.45,-69.1,-13.65,-64.5,-29.85,-57.8,-36.55,-55.1,-38.95,-54.1,-53.35,-48.2,-54.15,-47.9,-68.05,-42.2,-75.45,-39.3,-82.05,-36.8,-82.35,-36.6,-89.25,-33.6,-90.65,-33.0,-50.55,30.6,-50.15,30.4,-49.85,30.2,-46.65,28.5,-42.25,26.1,-38.15,23.9,-37.75,23.7,-28.55,18.7,-26.05,17.3,-24.05,16.2,-23.65,16.0,-14.95,11.2,9.15,-2.2,35.55,-16.8],[67.35,99.2,75.35,99.1,82.35,99.7,80.65,80.9,89.25,60.4,88.15,48.0,83.95,1.7,81.65,-24.4,80.65,-36.4,80.25,-40.8,35.55,-16.9,9.15,-2.2,-14.95,11.2,-23.65,16.0,-24.05,16.2,-23.55,17.0,-12.35,32.9,-11.25,34.4,-4.65,43.2,2.15,52.5,8.65,61.4,12.85,67.1,15.95,71.4,22.85,80.9,21.85,81.5,25.25,85.9,27.55,88.9,29.35,91.2,31.75,94.6,32.65,95.9,35.65,100.3,37.45,102.9,38.05,103.8,38.65,104.8,48.05,101.7,54.95,100.3,67.35,99.2],[89.85,-45.8,90.65,-46.3,85.25,-104.8,67.35,-97.9,17.45,-77.5,1.95,-70.9,-0.25,-70.0,35.55,-16.9,80.25,-40.8,89.85,-45.8]]};</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const D = window.DATA;
+const META = D.meta || {};
+const SP = D.species;
+const EXTRA = D.extraCols || [];
+const T = D.trees.map(r => ({id:r[0], sp:r[1], dap:r[2], h:r[3], x:r[4], y:r[5], lat:r[6], lon:r[7], cdm:r[8], ex:r[9]||[]}));
+
+// Textos del proyecto
+document.title = META.titulo ? 'Visor 3D ' + META.titulo : 'Visor 3D de arbolado';
+document.getElementById('ttl').textContent = META.titulo || 'Arbolado';
+document.getElementById('sub').textContent = META.subtitulo || '';
+document.getElementById('dsrc').textContent = META.fuente_inventario || 'Inventario de arbolado del proyecto.';
+
+// ---------- Porte por especie ----------
+const CONIF = /^(Cupressus|Pinus|Araucaria|Podocarpus|Retrophyllum|Prumnopitys|Thuja|Juniperus|Casuarina)/;
+const PALM = /^(Archontophoenix|Ceroxylon|Syagrus|Washingtonia|Phoenix|Roystonea|Elaeis|Cocos|Dypsis|Livistona|Attalea|Euterpe|Wodyetia|Butia)/;
+const COLUM = /^(Eucalyptus|Alnus|Liquidambar|Populus|Salix|Melaleuca|Grevillea|Cecropia)/;
+const SHRUB = /^(Fuchsia|Fucsia|Abutilon|Tibouchina|Cotoneaster|Leptosperm|Callistemon|Sparmannia|Piper|Bocconia|Camellia|Rhaphiolepis|Escallonia pendula|Croton|Eugenia myrtifolia|Acca|Sambucus|Senna|Hibiscus|Bougainvillea|Duranta|Ligustrum sinense|Euonymus)/;
+function porte(t){
+  const n = SP[t.sp];
+  if (PALM.test(n)) return 'palma';
+  if (CONIF.test(n)) return 'conifera';
+  if (t.h < 3.5 || SHRUB.test(n) && t.h < 6) return 'arbusto';
+  if (COLUM.test(n)) return 'columnar';
+  return 'frondoso';
+}
+const PORTES = {frondoso:'Frondoso', columnar:'Columnar', conifera:'Conífera', palma:'Palma', arbusto:'Arbustivo / joven'};
+
+// Copa (m): medida si viene en la plantilla; si no, estimada a partir del DAP y la altura
+function copa(t, p){
+  if (t.cdm > 0) return t.cdm;
+  const h = t.h, d = t.dap;
+  let cd;
+  if (p === 'conifera') cd = Math.max(1.2, Math.min(0.38*h, 1 + 0.09*d));
+  else if (p === 'palma') cd = Math.min(5, Math.max(2, 0.45*h));
+  else if (p === 'arbusto') cd = Math.max(0.7, Math.min(0.75*h + 0.3, 0.8 + 0.12*d));
+  else if (p === 'columnar') cd = Math.max(1.5, Math.min(0.45*h, 1.2 + 0.11*d));
+  else cd = Math.max(1.2, Math.min(0.75*h + 0.5, 1.2 + 0.14*d));
+  return Math.round(cd*10)/10;
+}
+T.forEach(t => { t.p = porte(t); t.cd = copa(t, t.p); });
+
+// ---------- Escena ----------
+const host = document.getElementById('scene');
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({antialias:true});
+} catch(e){ document.getElementById('err').style.display='flex'; throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+host.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe7e3);
+
+// Coordenadas: x = este, z = -norte, y = arriba
+const P = t => new THREE.Vector3(t.x, 0, -t.y);
+const PRED = (D.predio||[]).map(r=>{const a=[];for(let i=0;i<r.length;i+=2)a.push([r[i],r[i+1]]);return a;});
+let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+const grow=(x,y)=>{minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);};
+T.forEach(t=>grow(t.x,t.y)); PRED.forEach(r=>r.forEach(([x,y])=>grow(x,y)));
+const cx=(minX+maxX)/2, cy=(minY+maxY)/2, span=Math.max(40, maxX-minX, maxY-minY);
+const center = new THREE.Vector3(cx,0,-cy);
+const R = span/2 + 90; // radio del contexto que se consulta (m)
+scene.fog = new THREE.Fog(0xdfe7e3, R*2.2, R*4.5);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.5, 4000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI*0.495;
+controls.minDistance = 6; controls.maxDistance = R*4;
+
+const hemi = new THREE.HemisphereLight(0xf2f6f0, 0x6f7f63, 1.1);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff4e2, 2.2);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096,4096);
+const sc = sun.shadow.camera; sc.left=-R; sc.right=R; sc.top=R; sc.bottom=-R; sc.near=1; sc.far=R*5;
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+sun.target.position.copy(center);
+scene.add(sun, sun.target);
+
+// ---------- Terreno: plano hasta que llegue el relieve ----------
+let H = (x,y)=>0;
+let GRID = null;
+const flat = new THREE.Mesh(new THREE.PlaneGeometry(R*6, R*6), new THREE.MeshLambertMaterial({color:0xc9d6c0}));
+flat.rotation.x=-Math.PI/2; flat.position.set(cx,-0.05,-cy); flat.receiveShadow=true; scene.add(flat);
+
+function inPoly(x,y,ring){ let c=false; for(let i=0,j=ring.length-1;i<ring.length;j=i++){ const [xi,yi]=ring[i],[xj,yj]=ring[j]; if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi)) c=!c; } return c; }
+const inPredio=(x,y)=>PRED.some(r=>inPoly(x,y,r));
+
+// Límite del predio (KMZ), apoyado sobre el terreno
+let predioLines=[];
+function drawPredio(){
+  predioLines.forEach(l=>scene.remove(l)); predioLines=[];
+  PRED.forEach(r=>{
+    const pts=[];
+    for(let i=0;i<r.length;i++){
+      const [x0,y0]=r[i], [x1,y1]=r[(i+1)%r.length], n=Math.max(1,Math.ceil(Math.hypot(x1-x0,y1-y0)/2));
+      for(let s=0;s<n;s++){ const x=x0+(x1-x0)*s/n, y=y0+(y1-y0)*s/n; pts.push(new THREE.Vector3(x, H(x,y)+0.25, -y)); }
+    }
+    pts.push(pts[0].clone());
+    const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({color:0x2f6b4f, dashSize:2, gapSize:1.4}));
+    ln.computeLineDistances(); scene.add(ln); predioLines.push(ln);
+  });
+}
+drawPredio();
+
+// ---------- Edificaciones ----------
+const PISO = 3.0; // altura supuesta por piso (m)
+const bldMatIn = new THREE.MeshLambertMaterial({color:0xe6dccb, transparent:true});
+const bldMatOut = new THREE.MeshLambertMaterial({color:0xd3d6d4, transparent:true});
+const edgeMat = new THREE.LineBasicMaterial({color:0x7d8580, transparent:true, opacity:.55});
+const edgeSel = new THREE.LineBasicMaterial({color:0xb4561f});
+const buildings=[];
+const kx=111320*Math.cos(D.lat0*Math.PI/180), ky=110574;
+const toLocal=([lon,lat])=>new THREE.Vector2((lon-D.lon0)*kx, (lat-D.lat0)*ky);
+const toLL=(x,y)=>[D.lon0+x/kx, D.lat0+y/ky];
+function addBuilding(rings, info){
+  const outer=rings[0]; if(!outer||outer.length<3) return;
+  const shape=new THREE.Shape(outer); rings.slice(1).forEach(r=>shape.holes.push(new THREE.Path(r)));
+  const hs=outer.map(p=>H(p.x,p.y)), base=Math.min(...hs)-0.3, mean=hs.reduce((a,b)=>a+b,0)/hs.length;
+  const depth=Math.max(2.5, mean+info.alto-base);
+  const geo=new THREE.ExtrudeGeometry(shape,{depth, bevelEnabled:false}); geo.rotateX(-Math.PI/2); geo.translate(0,base,0);
+  let sx=0,sy=0; outer.forEach(p=>{sx+=p.x;sy+=p.y;});
+  info.inLot = inPredio(sx/outer.length, sy/outer.length);
+  const m=new THREE.Mesh(geo, info.inLot?bldMatIn:bldMatOut); m.castShadow=true; m.receiveShadow=true;
+  m.userData=Object.assign({kind:'bld'}, info);
+  m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo,30), edgeMat));
+  m.visible = bldMode!=='off';
+  scene.add(m); buildings.push(m);
+}
+function setBuildings(mode){
+  buildings.forEach(b=>b.visible = mode!=='off');
+  const op = mode==='ghost' ? 0.28 : 1;
+  [bldMatIn,bldMatOut].forEach(m=>{ m.opacity=op; m.depthWrite = op===1; m.needsUpdate=true; });
+  edgeMat.opacity = mode==='ghost' ? .35 : .55;
+}
+
+// ---------- Contexto en vivo: Catastro + MDT (Bogotá) u OpenStreetMap ----------
+const CAT='https://serviciosgis.catastrobogota.gov.co';
+const enBogota = D.lat0>3.73 && D.lat0<4.84 && D.lon0>-74.46 && D.lon0<-73.98;
+const status = document.getElementById('ctxst');
+const setStatus = s => status.textContent = s;
+const ctxSrc = document.getElementById('ctxsrc');
+const fetchJ = (u,o) => fetch(u,o).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
+function bboxLL(){ const [w,s]=toLL(cx-R,cy-R), [e,n]=toLL(cx+R,cy+R); return {w,s,e,n}; }
+
+async function loadGrid(){
+  const step=8, x0=cx-R, y0=cy-R, nx=Math.floor(2*R/step)+1, ny=nx, pts=[];
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++) pts.push(toLL(x0+i*step, y0+j*step));
+  const vals=new Array(pts.length).fill(null);
+  for(let i=0;i<pts.length;i+=300){
+    const body=new URLSearchParams({geometry:JSON.stringify({points:pts.slice(i,i+300),spatialReference:{wkid:4326}}),geometryType:'esriGeometryMultipoint',returnFirstValueOnly:'true',f:'json'});
+    const r=await fetchJ(CAT+'/image/rest/services/Imagenes/modelodigitalterreno2025funcion/ImageServer/getSamples',{method:'POST',body});
+    if(r.error) throw new Error(r.error.message);
+    r.samples.forEach(s=>vals[i+s.locationId]=parseFloat(s.value));
+  }
+  const ok=vals.filter(v=>v!=null&&!isNaN(v)&&v>0); if(ok.length<vals.length*0.8) throw new Error('relieve incompleto');
+  const base=Math.floor(Math.min(...ok)); const fill=ok.reduce((a,b)=>a+b,0)/ok.length;
+  return {x0,y0,step,nx,ny,base,h:vals.map(v=>(v!=null&&!isNaN(v)&&v>0?v:fill)-base)};
+}
+function buildTerrain(G){
+  GRID=G; const GH=G.h;
+  H=(x,y)=>{ let fi=(x-G.x0)/G.step, fj=(y-G.y0)/G.step; fi=Math.max(0,Math.min(G.nx-1.001,fi)); fj=Math.max(0,Math.min(G.ny-1.001,fj));
+    const i=Math.floor(fi), j=Math.floor(fj), a=fi-i, b=fj-j, k=j*G.nx+i;
+    return GH[k]*(1-a)*(1-b)+GH[k+1]*a*(1-b)+GH[k+G.nx]*(1-a)*b+GH[k+G.nx+1]*a*b; };
+  const n=G.nx*G.ny, pos=new Float32Array(n*3), col=new Float32Array(n*3), idx=[];
+  const hmin=Math.min(...GH), hmax=Math.max(...GH)+0.01, c0=new THREE.Color(0xc4d3b5), c1=new THREE.Color(0xd9d2b8), c=new THREE.Color();
+  for(let j=0;j<G.ny;j++) for(let i=0;i<G.nx;i++){
+    const k=j*G.nx+i; pos.set([G.x0+i*G.step, GH[k], -(G.y0+j*G.step)], k*3);
+    c.copy(c0).lerp(c1,(GH[k]-hmin)/(hmax-hmin)); col.set([c.r,c.g,c.b],k*3);
+    if(i<G.nx-1&&j<G.ny-1) idx.push(k,k+1,k+G.nx, k+1,k+G.nx+1,k+G.nx);
+  }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.BufferAttribute(col,3)); g.setIndex(idx); g.computeVertexNormals();
+  const terr=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true, side:THREE.DoubleSide})); terr.receiveShadow=true; scene.add(terr);
+  flat.position.y = hmin-0.5;
+  const segs=[];
+  for(let lv=Math.ceil(hmin/2)*2; lv<=hmax; lv+=2){
+    for(let j=0;j<G.ny-1;j++) for(let i=0;i<G.nx-1;i++){
+      const k=j*G.nx+i, q=[[i,j,GH[k]],[i+1,j,GH[k+1]],[i+1,j+1,GH[k+G.nx+1]],[i,j+1,GH[k+G.nx]]], pts=[];
+      for(let e=0;e<4;e++){ const A=q[e],B=q[(e+1)%4]; if((A[2]<lv)!==(B[2]<lv)){ const t=(lv-A[2])/(B[2]-A[2]); pts.push(new THREE.Vector3(G.x0+(A[0]+(B[0]-A[0])*t)*G.step, lv+0.06, -(G.y0+(A[1]+(B[1]-A[1])*t)*G.step))); } }
+      if(pts.length>=2) segs.push(pts[0],pts[1]); if(pts.length===4) segs.push(pts[2],pts[3]);
+    }
+  }
+  scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), new THREE.LineBasicMaterial({color:0x8a9a7f, transparent:true, opacity:.35})));
+  // reubicar todo sobre el relieve
+  const dy = H(cx,cy) - center.y; center.y += dy; controls.target.y += dy; camera.position.y += dy; sun.target.position.copy(center);
+  T.forEach(t=>t.z0=undefined); placeAll(); drawPredio();
+  labels.forEach(s=>lblGroup.remove(s)); labels.length=0; updateLabels();
+  if(selected>=0){ const t=T[selected]; ring.position.y=H(t.x,t.y)+0.12; }
+  updateSun();
+}
+async function loadCatastro(){
+  const b=bboxLL();
+  const u=CAT+`/arcgis/rest/services/catastro/construccion/MapServer/0/query?where=1%3D1&geometry=${b.w},${b.s},${b.e},${b.n}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=CONNPISOS,CONNSOTANO,LOTECODIGO&returnGeometry=true&outSR=4326&geometryPrecision=7&f=json`;
+  const r=await fetchJ(u); if(r.error) throw new Error(r.error.message);
+  return r.features.map(f=>({rings:f.geometry.rings.map(rg=>rg.map(toLocal)), info:{fuente:'Catastro', pisos:f.attributes.CONNPISOS||0, sot:f.attributes.CONNSOTANO||0, lote:f.attributes.LOTECODIGO, alto:Math.max(1,f.attributes.CONNPISOS||0)*PISO, altoTipo:'supuesta'}}));
+}
+async function loadOSM(){
+  const b=bboxLL();
+  const q=`[out:json][timeout:25];(way["building"](${b.s},${b.w},${b.n},${b.e});relation["building"](${b.s},${b.w},${b.n},${b.e}););out tags geom;`;
+  const r=await fetchJ('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});
+  const out=[];
+  r.elements.forEach(e=>{
+    let rings=[];
+    if(e.type==='way'&&e.geometry) rings=[e.geometry.map(p=>toLocal([p.lon,p.lat]))];
+    else if(e.type==='relation') rings=(e.members||[]).filter(m=>m.geometry).sort((a,b)=>(a.role==='outer'?0:1)-(b.role==='outer'?0:1)).map(m=>m.geometry.map(p=>toLocal([p.lon,p.lat])));
+    if(!rings.length) return;
+    const tg=e.tags||{}; const hm=parseFloat(tg.height), lv=parseInt(tg['building:levels']);
+    const alto = hm>0 ? hm : (lv>0 ? lv*PISO : 2*PISO);
+    out.push({rings, info:{fuente:'OpenStreetMap', pisos: lv>0?lv:null, sot:null, lote:null, alto, altoTipo: hm>0?'OSM':(lv>0?'supuesta':'estimada')}});
+  });
+  return out;
+}
+async function loadContext(){
+  if(location.protocol==='file:'){ setStatus('Las edificaciones y el relieve se cargan cuando el visor está publicado en la web.'); return; }
+  const src=[];
+  if(enBogota){
+    setStatus('Cargando relieve y edificaciones de Catastro…');
+    try{ buildTerrain(await loadGrid()); src.push('«Modelo Digital de Terreno 2025, IDECA, CC BY 4.0»'); }catch(e){ console.warn('relieve',e); }
+    try{ const bl=await loadCatastro(); if(!bl.length) throw new Error('sin datos'); bl.forEach(b=>addBuilding(b.rings,b.info)); src.push('«Construcciones, Catastro Bogotá (UAECD), CC BY 4.0»');
+      setStatus(`${bl.length} edificaciones de Catastro Bogotá${GRID?' sobre el relieve del MDT 2025':''}.`); }
+    catch(e){ console.warn('catastro',e); }
+  }
+  if(!buildings.length){
+    setStatus('Cargando edificaciones de OpenStreetMap…');
+    try{ const bl=await loadOSM(); bl.forEach(b=>addBuilding(b.rings,b.info)); src.push('«© Colaboradores de OpenStreetMap, ODbL»');
+      setStatus(bl.length ? `${bl.length} edificaciones de OpenStreetMap${GRID?'':', sobre suelo plano'}.` : 'OpenStreetMap no tiene edificaciones dibujadas en esta zona.'); }
+    catch(e){ console.warn('osm',e); setStatus('No se pudieron cargar las edificaciones. Revisa la conexión y recarga.'); }
+  }
+  ctxSrc.textContent = src.length ? 'Contexto: ' + src.join(' · ') + ', consultado al abrir el visor.' : '';
+}
+
+// ---------- Geometrías por porte ----------
+function lowpoly(geo){ if (geo.index) geo = geo.toNonIndexed(); geo.computeVertexNormals(); return geo; }
+const GEO = {
+  frondoso: lowpoly(new THREE.IcosahedronGeometry(0.5, 1)),
+  columnar: lowpoly(new THREE.IcosahedronGeometry(0.5, 1)),
+  arbusto:  lowpoly(new THREE.IcosahedronGeometry(0.5, 1)),
+  conifera: lowpoly(new THREE.ConeGeometry(0.5, 1, 8)),
+  palma:    lowpoly(new THREE.ConeGeometry(0.5, 0.35, 9).rotateX(Math.PI).translate(0,0.08,0)),
+};
+const crownMat = new THREE.MeshLambertMaterial({flatShading:true});
+const trunkMat = new THREE.MeshLambertMaterial({color:0x7a5c45});
+
+const groups = {};
+Object.keys(GEO).forEach(k => groups[k] = []);
+T.forEach((t,i) => groups[t.p].push(i));
+const crownMeshes = [];
+const meshOf = {}; // tree index -> {mesh, slot}
+for (const k in groups){
+  const idx = groups[k]; if (!idx.length) continue;
+  const m = new THREE.InstancedMesh(GEO[k], crownMat, idx.length);
+  m.castShadow = true; m.receiveShadow = true;
+  m.userData.idx = idx;
+  idx.forEach((ti,slot)=> meshOf[ti] = {mesh:m, slot});
+  scene.add(m); crownMeshes.push(m);
+}
+const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5,0.5,1,7).translate(0,0.5,0), trunkMat, T.length);
+trunk.castShadow = true; trunk.userData.idx = T.map((_,i)=>i);
+scene.add(trunk);
+
+function crownBox(t){
+  // devuelve [centroY, alto, diámetro]
+  const h=t.h, cd=t.cd;
+  switch(t.p){
+    case 'conifera': { const base=Math.min(1.2, h*0.12); return [base+(h-base)/2, h-base, cd]; }
+    case 'palma': return [h-0.25, 1, cd];
+    case 'arbusto': { const base=h*0.12; return [base+(h-base)/2, h-base, cd]; }
+    case 'columnar': { const base=h*0.35; return [base+(h-base)/2, (h-base), cd]; }
+    default: { const base=h*0.3; const ch=Math.max(h-base, Math.min(cd, h*0.8)); return [h-ch/2, ch, cd]; }
+  }
+}
+const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S = new THREE.Vector3();
+const visible = T.map(()=>true);
+function placeAll(){
+  T.forEach((t,i)=>{
+    const vis = visible[i];
+    const [yc, ch, cd] = crownBox(t);
+    const p = P(t); const z0 = (t.z0 ??= H(t.x,t.y));
+    // rotación ligera por árbol para que no se vean clonados
+    Q.setFromAxisAngle(new THREE.Vector3(0,1,0), (t.id*2.399)%6.283);
+    V.set(p.x, yc+z0, p.z); S.set(vis?cd:0, vis?ch:0, vis?cd:0);
+    M.compose(V,Q,S);
+    const {mesh, slot} = meshOf[i]; mesh.setMatrixAt(slot, M);
+    const r = Math.max(0.06, t.dap/200) * (t.p==='palma'?1.2:1);
+    const th = (t.p==='palma' ? t.h-0.3 : Math.min(t.h, yc)) + 0.3;
+    V.set(p.x,z0-0.3,p.z); S.set(vis?r*2:0, vis?th:0, vis?r*2:0); Q.identity();
+    M.compose(V,Q,S); trunk.setMatrixAt(i, M);
+  });
+  crownMeshes.forEach(m=>{m.instanceMatrix.needsUpdate=true; m.computeBoundingSphere();});
+  trunk.instanceMatrix.needsUpdate=true; trunk.computeBoundingSphere();
+}
+
+// ---------- Colores ----------
+const SPCOL = ['#2f7d4f','#c98a1c','#b64a6f','#1f5a3d','#6aa84f','#4f86b0','#d9b13b','#8a5aa8','#3fa59a','#c0603a'];
+const OTRAS = '#93a597';
+const BINS = {
+  altura:{t:'Altura total (m)', edges:[3,6,10,15,20], labels:['< 3','3 – 6','6 – 10','10 – 15','15 – 20','≥ 20'], cols:['#d7e8b8','#a9d08e','#76b36a','#4a9152','#2e6e43','#1b4a31'], f:t=>t.h},
+  dap:{t:'DAP (cm)', edges:[10,20,30,45], labels:['< 10','10 – 20','20 – 30','30 – 45','≥ 45'], cols:['#f1e2b4','#e0b96a','#c98a3a','#a35f2a','#6f3a1d'], f:t=>t.dap},
+};
+const PCOL = {frondoso:'#4a9152', columnar:'#7fae6a', conifera:'#1f5a3d', palma:'#c9a93a', arbusto:'#b64a6f'};
+let mode = 'especie';
+function colorOf(t){
+  if (mode==='especie') return t.sp < SPCOL.length ? SPCOL[t.sp] : OTRAS;
+  if (mode==='porte') return PCOL[t.p];
+  const b = BINS[mode]; const v=b.f(t); let k=0; while(k<b.edges.length && v>=b.edges[k]) k++; return b.cols[k];
+}
+const C = new THREE.Color();
+let selected = -1;
+function paint(){
+  T.forEach((t,i)=>{
+    C.set(colorOf(t));
+    if (selected>=0 && i!==selected) C.lerp(new THREE.Color(0xe9ece9), 0.45);
+    const {mesh,slot}=meshOf[i]; mesh.setColorAt(slot, C);
+  });
+  crownMeshes.forEach(m=>m.instanceColor.needsUpdate=true);
+  legend();
+}
+function legend(){
+  const lt=document.getElementById('legt'), li=document.getElementById('legi');
+  let items=[];
+  if (mode==='especie'){ lt.textContent='Especie (10 más frecuentes)'; items = SP.slice(0,SPCOL.length).map((n,i)=>[SPCOL[i], `<i>${n}</i>`]); items.push([OTRAS, `Otras ${SP.length-SPCOL.length} especies`]); }
+  else if (mode==='porte'){ lt.textContent='Porte (forma dibujada)'; items = Object.keys(PORTES).map(k=>[PCOL[k], `${PORTES[k]} (${T.filter(t=>t.p===k).length})`]); }
+  else { const b=BINS[mode]; lt.textContent=b.t; items=b.labels.map((l,k)=>{const lo=k?b.edges[k-1]:-1, hi=k<b.edges.length?b.edges[k]:1e9; const n=T.filter(t=>{const v=b.f(t);return v>=lo&&v<hi;}).length; return [b.cols[k], `${l} <span style="color:var(--muted)">(${n})</span>`];}); }
+  li.innerHTML = items.map(([c,l])=>`<span class="it"><span class="sw" style="background:${c}"></span>${l}</span>`).join('');
+}
+
+// ---------- Filtros ----------
+const fsp=document.getElementById('fsp'), fh=document.getElementById('fh');
+fh.max = Math.ceil(Math.max(...T.map(t=>t.h)));
+SP.forEach((n,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=`${n} (${D.counts[i]})`; fsp.appendChild(o); });
+document.getElementById('splist').innerHTML = SP.map(n=>`<option value="${n}">`).join('');
+function applyFilter(){
+  const s=+fsp.value, hm=+fh.value; let n=0;
+  T.forEach((t,i)=>{ visible[i] = (s<0||t.sp===s) && t.h>=hm; if(visible[i]) n++; });
+  document.getElementById('fhv').textContent = hm+' m';
+  document.getElementById('shown').textContent = n===T.length ? `Se muestran los ${T.length} árboles.` : `Se muestran ${n} de ${T.length} árboles.`;
+  placeAll(); updateLabels();
+}
+fsp.onchange=applyFilter; fh.oninput=applyFilter;
+
+// Lista de especies frecuentes
+const top=document.getElementById('top'); const maxc=D.counts[0];
+top.innerHTML = SP.slice(0,8).map((n,i)=>`<button class="sp" data-i="${i}" title="Mostrar solo ${n}"><i>${n}</i><em>${D.counts[i]}</em><span class="bar"><span style="width:${D.counts[i]/maxc*100}%"></span></span></button>`).join('');
+top.onclick=e=>{const b=e.target.closest('.sp'); if(!b) return; fsp.value = fsp.value===b.dataset.i ? -1 : b.dataset.i; applyFilter();};
+
+// Modo de color
+document.getElementById('mode').onclick=e=>{const b=e.target.closest('button'); if(!b) return; mode=b.dataset.m; document.querySelectorAll('#mode button').forEach(x=>x.setAttribute('aria-pressed', x===b)); paint();};
+
+// Estadísticas
+document.getElementById('sN').textContent=T.length;
+document.getElementById('sS').textContent=SP.length;
+document.getElementById('sH').textContent=Math.max(...T.map(t=>t.h)).toLocaleString('es-CO')+' m';
+
+// ---------- Sol (posición calculada, NOAA simplificado) ----------
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const mon=document.getElementById('mon'), hr=document.getElementById('hr');
+mon.value = new Date().getMonth();
+function sunPos(month, clock){
+  const doy = [15,46,74,105,135,166,196,227,258,288,319,349][month];
+  const g = 2*Math.PI/365*(doy-1+(clock-12)/24);
+  const eot = 229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+  const decl = 0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+  const tst = clock*60 + eot + 4*D.lon0 - 60*(-5); // minutos de tiempo solar verdadero
+  const ha = (tst/4 - 180)*Math.PI/180;
+  const lat = D.lat0*Math.PI/180;
+  const cosZ = Math.sin(lat)*Math.sin(decl)+Math.cos(lat)*Math.cos(decl)*Math.cos(ha);
+  const zen = Math.acos(Math.max(-1,Math.min(1,cosZ)));
+  let az = Math.acos(Math.max(-1,Math.min(1,(Math.sin(lat)*Math.cos(zen)-Math.sin(decl))/(Math.cos(lat)*Math.sin(zen)))));
+  az = ha>0 ? (az*180/Math.PI+180)%360 : (540-az*180/Math.PI)%360;
+  return {elev:90-zen*180/Math.PI, az};
+}
+function updateSun(){
+  const m=+mon.value, h=+hr.value;
+  const hh=Math.floor(h), mm=Math.round((h-hh)*60);
+  document.getElementById('monv').textContent = MESES[m].replace(/^./,c=>c.toUpperCase()) + ' (día 15)';
+  document.getElementById('hrv').textContent = `${hh}:${String(mm).padStart(2,'0')}`;
+  const s = sunPos(m,h);
+  const e = s.elev*Math.PI/180, a = s.az*Math.PI/180;
+  const dir = new THREE.Vector3(Math.cos(e)*Math.sin(a), Math.sin(e), -Math.cos(e)*Math.cos(a));
+  sun.position.copy(center).addScaledVector(dir, 300);
+  const up = s.elev>0;
+  sun.intensity = up ? 0.6 + 1.8*Math.min(1, Math.sin(e)*1.6) : 0;
+  hemi.intensity = up ? 1.1 : 0.7;
+  const card = ['N','NE','E','SE','S','SO','O','NO'][Math.round(s.az/45)%8];
+  document.getElementById('sunv').textContent = up
+    ? `Sol a ${s.elev.toFixed(0)}° de altura, hacia el ${card} (azimut ${s.az.toFixed(0)}°). Cielo despejado.`
+    : 'El sol está bajo el horizonte a esta hora.';
+}
+mon.oninput=updateSun; hr.oninput=updateSun;
+
+// ---------- Etiquetas de número ----------
+let labelsOn=false; const labels=[];
+const lblGroup = new THREE.Group(); scene.add(lblGroup);
+function makeLabel(text){
+  const c=document.createElement('canvas'); c.width=64; c.height=32; const g=c.getContext('2d');
+  g.fillStyle='rgba(29,42,36,.85)'; g.beginPath(); g.roundRect(2,2,60,28,8); g.fill();
+  g.fillStyle='#fff'; g.font='600 18px Public Sans, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(text,32,17);
+  const tx=new THREE.CanvasTexture(c); tx.colorSpace=THREE.SRGBColorSpace;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx, depthTest:false, transparent:true}));
+  sp.scale.set(2.2,1.1,1); sp.renderOrder=10; return sp;
+}
+function updateLabels(){
+  if(!labelsOn){ lblGroup.visible=false; return; }
+  if(!labels.length) T.forEach(t=>{ const s=makeLabel(String(t.id)); const p=P(t); s.position.set(p.x, t.h+1+H(t.x,t.y), p.z); labels.push(s); lblGroup.add(s); });
+  labels.forEach((s,i)=>s.visible=visible[i]); lblGroup.visible=true;
+}
+document.getElementById('vlbl').onclick=e=>{labelsOn=!labelsOn; e.currentTarget.setAttribute('aria-pressed',labelsOn); e.currentTarget.style.background=labelsOn?'var(--accent-soft)':''; updateLabels();};
+
+// ---------- Selección ----------
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.85,1,40), new THREE.MeshBasicMaterial({color:0xb4561f, side:THREE.DoubleSide, transparent:true, opacity:.95}));
+ring.rotation.x=-Math.PI/2; ring.visible=false; scene.add(ring);
+const card=document.getElementById('card');
+const fmt=(v,d=1)=>v.toLocaleString('es-CO',{minimumFractionDigits:d,maximumFractionDigits:d});
+function select(i, fly){
+  selected=i;
+  if(i<0){ if(selBld){ selBld.children[0].material=edgeMat; selBld=null; } card.classList.remove('open'); ring.visible=false; paint(); history.replaceState(null,'',location.pathname+location.search); return; }
+  if(selBld){ selBld.children[0].material=edgeMat; selBld=null; }
+  document.querySelector('#card .lbl').textContent='Árbol'; document.getElementById('csp').style.fontStyle='';
+  document.getElementById('cfocus').style.display=''; document.getElementById('ccopy').style.display='';
+  const t=T[i];
+  if(!visible[i]){ fsp.value=-1; fh.value=0; applyFilter(); }
+  document.getElementById('cid').textContent = 'N.º '+t.id;
+  document.getElementById('csp').textContent = SP[t.sp];
+  document.getElementById('cdl').innerHTML = `
+    <dt>Altura total</dt><dd>${fmt(t.h)} m <span class="tag m">medida</span></dd>
+    <dt>DAP</dt><dd>${fmt(t.dap)} cm <span class="tag m">medido</span></dd>
+    <dt>Diámetro de copa</dt><dd>${fmt(t.cd)} m ${t.cdm>0?'<span class="tag m">medido</span>':'<span class="tag e">estimado</span>'}</dd>
+    <dt>Porte dibujado</dt><dd>${PORTES[t.p]}</dd>
+    ${EXTRA.map((c,k)=>{ const v=t.ex[k]; return (v===null||v===undefined||v==='')?'':`<dt>${c.replace(/_/g,' ')}</dt><dd>${v}</dd>`; }).join('')}
+    ${GRID?`<dt>Cota del terreno</dt><dd>${Math.round(GRID.base+H(t.x,t.y)).toLocaleString('es-CO')} m <span class="tag e">MDT 2025</span></dd>`:''}
+    <dt>Latitud</dt><dd>${t.lat.toFixed(7)}</dd>
+    <dt>Longitud</dt><dd>${t.lon.toFixed(7)}</dd>`;
+  document.getElementById('cnote').textContent = `${D.counts[t.sp]} árbol${D.counts[t.sp]>1?'es':''} de esta especie en el inventario.`;
+  card.classList.add('open');
+  const p=P(t); const s=Math.max(1.4,t.cd*0.75); ring.position.set(p.x,H(t.x,t.y)+0.12,p.z); ring.scale.set(s,s,s); ring.visible=true;
+  paint();
+  try{ history.replaceState(null,'','#arbol-'+encodeURIComponent(t.id)); }catch(e){}
+  if(fly) focusTree(t);
+}
+function focusTree(t){
+  const p=P(t); const d=Math.max(38, t.h*2.6);
+  const z0=H(t.x,t.y); flyTo(new THREE.Vector3(p.x, z0, p.z), new THREE.Vector3(p.x - d*0.22, z0+d, p.z + d*0.3));
+}
+document.getElementById('cclose').onclick=()=>select(-1);
+document.getElementById('cfocus').onclick=()=>selected>=0&&focusTree(T[selected]);
+document.getElementById('ccopy').onclick=async e=>{ const t=T[selected]; try{ await navigator.clipboard.writeText(`${t.lat.toFixed(7)}, ${t.lon.toFixed(7)}`); e.target.textContent='Copiadas'; }catch(_){ e.target.textContent=`${t.lat.toFixed(6)}, ${t.lon.toFixed(6)}`; } setTimeout(()=>e.target.textContent='Copiar coordenadas',1800); };
+
+// Búsqueda
+document.getElementById('q').addEventListener('keydown',e=>{
+  if(e.key!=='Enter') return;
+  const v=e.target.value.trim(); if(!v) return;
+  const ii=T.findIndex(t=>String(t.id).toLowerCase()===v.toLowerCase()); if(ii>=0){ select(ii,true); return; } if(/^\d+$/.test(v)){ e.target.setCustomValidity('No hay un árbol con ese número'); e.target.reportValidity(); return; }
+  const k=SP.findIndex(n=>n.toLowerCase().includes(v.toLowerCase()));
+  if(k>=0){ fsp.value=k; applyFilter(); }
+});
+document.getElementById('q').addEventListener('input',e=>{ e.target.setCustomValidity(''); const k=SP.indexOf(e.target.value); if(k>=0){ fsp.value=k; applyFilter(); }});
+
+// ---------- Raycast ----------
+const ray=new THREE.Raycaster(), mouse=new THREE.Vector2(), tip=document.getElementById('tip');
+let bldMode='solid';
+function pick(ev){
+  const r=renderer.domElement.getBoundingClientRect();
+  mouse.set(((ev.clientX-r.left)/r.width)*2-1, -((ev.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(mouse,camera);
+  const hits=ray.intersectObjects([...crownMeshes, trunk, ...buildings.filter(b=>b.visible)], false);
+  let firstB=null;
+  for(const h of hits){
+    if(h.object.userData.kind==='bld'){ if(bldMode==='solid') return {b:h.object}; firstB=firstB||h.object; continue; }
+    const ti=h.object.userData.idx[h.instanceId]; if(visible[ti]) return {t:ti};
+  }
+  return firstB ? {b:firstB} : null;
+}
+let down=null, selBld=null;
+renderer.domElement.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+renderer.domElement.addEventListener('pointerup',e=>{
+  if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5) return;
+  const p=pick(e);
+  if(p&&p.b) selectBld(p.b); else select(p?p.t:-1, false);
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+  if(e.pointerType!=='mouse') return;
+  const p=pick(e);
+  if(!p){ tip.style.display='none'; renderer.domElement.style.cursor=''; return; }
+  renderer.domElement.style.cursor='pointer';
+  if(p.b){ const u=p.b.userData; tip.innerHTML=`Construcción · ${u.pisos!=null?pisosTxt(u.pisos):fmt(u.alto)+' m'}${u.sot?` · ${u.sot} sótano${u.sot>1?'s':''}`:''}`; }
+  else { const t=T[p.t]; tip.innerHTML=`N.º ${t.id} · <i>${SP[t.sp]}</i> · ${fmt(t.h)} m`; }
+  tip.style.display='block'; tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY+12)+'px';
+});
+function pisosTxt(n){ return n===0 ? 'sin pisos registrados' : `${n} piso${n>1?'s':''}`; }
+function selectBld(m){
+  if(selected>=0){ selected=-1; ring.visible=false; paint(); }
+  if(selBld) selBld.children[0].material=edgeMat;
+  selBld=m; m.children[0].material=edgeSel;
+  const u=m.userData;
+  document.querySelector('#card .lbl').textContent='Construcción';
+  document.getElementById('cid').textContent=(u.pisos!=null?pisosTxt(u.pisos):'Altura '+fmt(u.alto)+' m').replace(/^./,c=>c.toUpperCase());
+  document.getElementById('csp').textContent=u.inLot?'Dentro del predio':'Construcción vecina';
+  document.getElementById('csp').style.fontStyle='normal';
+  document.getElementById('cdl').innerHTML=`
+    ${u.pisos!=null?`<dt>Pisos</dt><dd>${u.pisos} <span class="tag m">${u.fuente}</span></dd>`:''}
+    ${u.sot!=null?`<dt>Sótanos</dt><dd>${u.sot}</dd>`:''}
+    <dt>Altura dibujada</dt><dd>${fmt(u.alto)} m <span class="tag ${u.altoTipo==='OSM'?'m':'e'}">${u.altoTipo}</span></dd>
+    ${u.lote?`<dt>Lote catastral</dt><dd>${u.lote}</dd>`:''}
+    <dt>Fuente</dt><dd>${u.fuente}</dd>`;
+  document.getElementById('cnote').textContent= u.altoTipo==='OSM' ? 'Altura tomada de OpenStreetMap.' : `La altura se dibuja con ${fmt(PISO)} m por piso${u.pisos==null?' y 2 pisos cuando la fuente no los indica':''}.`;
+  document.getElementById('cfocus').style.display='none'; document.getElementById('ccopy').style.display='none';
+  card.classList.add('open');
+}
+// ---------- Cámara ----------
+let anim=null;
+function flyTo(target, pos){
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduce){ controls.target.copy(target); camera.position.copy(pos); return; }
+  anim={t0:performance.now(), from:[controls.target.clone(), camera.position.clone()], to:[target,pos]};
+}
+function view3d(){ flyTo(center.clone(), new THREE.Vector3(cx - span*0.9, center.y+span*0.75, -cy + span*1.0)); }
+function viewTop(){ flyTo(center.clone(), new THREE.Vector3(cx, center.y+span*1.5, -cy+0.01)); }
+document.getElementById('v3d').onclick=view3d;
+document.getElementById('vtop').onclick=viewTop;
+controls.target.copy(center);
+camera.position.set(cx - span*0.9, center.y+span*0.75, -cy + span*1.0);
+
+// Panel colapsable en móvil
+const side=document.getElementById('side'), tg=document.getElementById('toggle');
+tg.onclick=()=>{ const c=side.classList.toggle('collapsed'); tg.textContent=c?'Controles':'Ocultar'; tg.setAttribute('aria-expanded',!c); };
+
+// Brújula y escala
+const needle=document.getElementById('needle'), scb=document.getElementById('scb'), sct=document.getElementById('sct');
+function hud(){
+  const v=new THREE.Vector3(); camera.getWorldDirection(v);
+  const ang=Math.atan2(v.x, -v.z); // rumbo de la cámara respecto al norte
+  needle.setAttribute('transform',`rotate(${-ang*180/Math.PI} 32 32)`);
+  const dist=camera.position.distanceTo(controls.target);
+  const mpp = 2*dist*Math.tan(camera.fov*Math.PI/360)/innerHeight;
+  const opts=[1,2,5,10,20,50,100]; let m=opts.find(o=>o/mpp>=50)||100;
+  scb.style.width=Math.round(m/mpp)+'px'; sct.textContent=m+' m';
+}
+
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+function loop(now){
+  if(anim){
+    let k=Math.min(1,(now-anim.t0)/900); const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    controls.target.lerpVectors(anim.from[0],anim.to[0],e); camera.position.lerpVectors(anim.from[1],anim.to[1],e);
+    if(k>=1) anim=null;
+  }
+  controls.update(); hud(); renderer.render(scene,camera); requestAnimationFrame(loop);
+}
+
+document.getElementById('bmode').onclick=e=>{const b=e.target.closest('button'); if(!b) return; bldMode=b.dataset.b; document.querySelectorAll('#bmode button').forEach(x=>x.setAttribute('aria-pressed', x===b)); setBuildings(bldMode); if(bldMode==='off'&&selBld) select(-1);};
+
+// ---------- Inicio ----------
+applyFilter(); paint(); updateSun(); loadContext();
+requestAnimationFrame(loop);
+function fromHash(){ const m=location.hash.match(/^#arbol-(.+)$/); if(m){ const k=decodeURIComponent(m[1]); const i=T.findIndex(t=>String(t.id)===k); if(i>=0) select(i,true);} }
+addEventListener('hashchange',fromHash); fromHash();
+</script>
+</body>
+</html>
